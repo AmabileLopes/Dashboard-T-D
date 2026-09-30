@@ -1,0 +1,6 @@
+{
+  "name": "NDD Gestão de Treinamentos e Competências",
+  "description": "Portal centralizado de matrizes de competência, atendimento de requisitos e gestão de gaps por equipe e colaboradores.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
