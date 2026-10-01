@@ -784,7 +784,7 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
                                                 return (
                                                   <div
                                                     key={comp.id}
-                                                    className="p-3 bg-[#f0fdf4]/80 hover:bg-[#ecfdf5] transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-l-4 border-l-[#10b981]"
+                                                    className="p-3 bg-[#f0fdf4]/50 hover:bg-[#ecfdf5]/75 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-l-4 border-l-[#10b981]"
                                                   >
                                                     <div>
                                                       <h4 className="text-xs sm:text-sm font-bold text-slate-800">
@@ -823,14 +823,18 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
                                               // Competência com GAP Row
                                               const isDropdownOpen = openDropdownCompId === comp.id;
 
-                                              // Distinct row style based on priority level
-                                              let rowBgClass = 'bg-[#fff1f2]/80 hover:bg-[#ffe4e6]/60 border-l-[#f43f5e]';
+                                              // Hierarquia visual estrita de priorização (Alta > Média > Baixa > Sem prioridade):
+                                              // - Alta: Maior peso visual com vermelho claro bem presente e evidente
+                                              // - Média: Peso intermediário com laranja equilibrado e mais suave que a Alta
+                                              // - Baixa: Menor peso visual com amarelo bem sutil, suave e discreto (não ofusca a Média)
+                                              // - Gap sem priorização: Fundo neutro branco puro
+                                              let rowBgClass = 'bg-white hover:bg-slate-50 border-l-red-500';
                                               if (comp.gapPriority === 'Prioridade I - Alta') {
-                                                rowBgClass = 'bg-rose-50/70 hover:bg-rose-50 border-l-rose-500';
+                                                rowBgClass = 'bg-red-100/90 hover:bg-red-100 border-l-red-600';
                                               } else if (comp.gapPriority === 'Prioridade II - Média') {
-                                                rowBgClass = 'bg-amber-50/70 hover:bg-amber-50 border-l-amber-500';
+                                                rowBgClass = 'bg-orange-100/75 hover:bg-orange-100 border-l-red-500';
                                               } else if (comp.gapPriority === 'Prioridade III - Baixa') {
-                                                rowBgClass = 'bg-blue-50/40 hover:bg-blue-50/70 border-l-blue-400';
+                                                rowBgClass = 'bg-[#fefce8] hover:bg-yellow-100/50 border-l-red-500';
                                               }
 
                                               return (
@@ -858,7 +862,7 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
                                                         </span>
                                                       )}
                                                       {comp.gapPriority === 'Prioridade III - Baixa' && (
-                                                        <span className="px-2.5 py-0.5 rounded-full bg-yellow-100 text-yellow-800 border border-yellow-300 font-bold text-[10px] flex items-center gap-1.5 shadow-2xs">
+                                                        <span className="px-2.5 py-0.5 rounded-full bg-yellow-50 text-yellow-800 border border-yellow-200 font-semibold text-[10px] flex items-center gap-1.5 shadow-2xs">
                                                           <span className="w-1.5 h-1.5 rounded-full bg-yellow-500"></span>
                                                           Prioridade III - Baixa
                                                         </span>
