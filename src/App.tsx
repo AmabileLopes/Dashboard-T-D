@@ -327,7 +327,9 @@ export default function App() {
             </>
           )}
 
-          {currentTab === 'horas' && <HoursManagementView />}
+          {currentTab === 'horas' && (
+            <HoursManagementView onToast={(msg) => setToastMessage(msg)} />
+          )}
 
           {currentTab === 'trilhas' && (
             <TrainingTracksView onSelectTrack={(msg) => setToastMessage(msg)} />
