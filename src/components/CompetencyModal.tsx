@@ -843,31 +843,9 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
                                                   className={`p-3 transition-colors flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-l-4 relative ${rowBgClass}`}
                                                 >
                                                   <div>
-                                                    <div className="flex flex-wrap items-center gap-2">
-                                                      <h4 className="text-xs sm:text-sm font-bold text-slate-800">
-                                                        {comp.name}
-                                                      </h4>
-
-                                                      {/* Distinct badges for Alta (Vermelha), Média (Laranja), Baixa (Amarela) */}
-                                                      {comp.gapPriority === 'Prioridade I - Alta' && (
-                                                        <span className="px-2.5 py-0.5 rounded-full bg-red-100 text-red-800 border border-red-300 font-bold text-[10px] flex items-center gap-1.5 shadow-2xs">
-                                                          <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-pulse"></span>
-                                                          Prioridade I - Alta
-                                                        </span>
-                                                      )}
-                                                      {comp.gapPriority === 'Prioridade II - Média' && (
-                                                        <span className="px-2.5 py-0.5 rounded-full bg-orange-100 text-orange-800 border border-orange-300 font-bold text-[10px] flex items-center gap-1.5 shadow-2xs">
-                                                          <span className="w-1.5 h-1.5 rounded-full bg-orange-500"></span>
-                                                          Prioridade II - Média
-                                                        </span>
-                                                      )}
-                                                      {comp.gapPriority === 'Prioridade III - Baixa' && (
-                                                        <span className="px-2.5 py-0.5 rounded-full bg-yellow-50 text-yellow-800 border border-yellow-200 font-semibold text-[10px] flex items-center gap-1.5 shadow-2xs">
-                                                          <span className="w-1.5 h-1.5 rounded-full bg-yellow-500"></span>
-                                                          Prioridade III - Baixa
-                                                        </span>
-                                                      )}
-                                                    </div>
+                                                    <h4 className="text-xs sm:text-sm font-bold text-slate-800">
+                                                      {comp.name}
+                                                    </h4>
                                                     <span className="text-[11px] text-slate-500 font-normal">
                                                       Nível desejado: {comp.desiredLevel}
                                                     </span>
@@ -974,7 +952,7 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
                                                                         dateStr
                                                                       );
                                                                       onToast(
-                                                                        `Prioridade "${priority}" definida. Data obrigatória preenchida para ${dateStr}.`
+                                                                        `Prioridade "${priority}" definida (prazo sugerido: ${dateStr})`
                                                                       );
                                                                     } else {
                                                                       onToast(`Prioridade atualizada para "${priority}"`);
@@ -1006,7 +984,7 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
                                                       <div
                                                         className={`flex items-center gap-1.5 h-8 px-2.5 rounded-lg border shadow-2xs transition-all ${
                                                           isPrioritized && !comp.targetDate
-                                                            ? 'border-rose-500 bg-rose-50 ring-2 ring-rose-200'
+                                                            ? 'border-rose-300 bg-rose-50/30'
                                                             : comp.gapPriority === 'Prioridade I - Alta'
                                                             ? 'border-red-300 bg-red-50/40 hover:border-red-400'
                                                             : comp.gapPriority === 'Prioridade II - Média'
@@ -1041,7 +1019,7 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
                                                             const val = e.target.value;
                                                             if (isPrioritized && !val) {
                                                               onToast(
-                                                                '⚠️ A data de conclusão é obrigatória para competências com prioridade.'
+                                                                'A data de conclusão é necessária para competências priorizadas.'
                                                               );
                                                               return;
                                                             }
@@ -1057,15 +1035,7 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
                                                         />
                                                       </div>
                                                       {isPrioritized && (
-                                                        <span
-                                                          className={`text-[9px] font-bold tracking-tight pl-0.5 ${
-                                                            comp.gapPriority === 'Prioridade I - Alta'
-                                                              ? 'text-red-700'
-                                                              : comp.gapPriority === 'Prioridade II - Média'
-                                                              ? 'text-orange-700'
-                                                              : 'text-yellow-800'
-                                                          }`}
-                                                        >
+                                                        <span className="text-[9px] text-slate-400 font-normal pl-0.5 tracking-normal">
                                                           * Data obrigatória
                                                         </span>
                                                       )}
