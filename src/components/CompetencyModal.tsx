@@ -1,7 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import {
   Download,
-  X,
   CheckCircle2,
   AlertCircle,
   Briefcase,
@@ -12,20 +11,27 @@ import {
   Calendar,
   Check,
   Search,
+  Star,
+  Sparkles,
+  RotateCcw,
 } from 'lucide-react';
 import { Manager, GapPriority, SkillLevel } from '../types';
+
+export type ModalTabType = 'todas' | 'atendidas' | 'gaps' | 'priorizados';
 
 interface CompetencyModalProps {
   isOpen: boolean;
   onClose: () => void;
   managers: Manager[];
-  initialTab?: 'todas' | 'atendidas' | 'gaps';
+  initialTab?: ModalTabType;
   onUpdateCompetency: (
     makerId: string,
     compId: string,
     field: 'gapPriority' | 'targetDate' | 'currentLevel',
     value: string | SkillLevel | GapPriority
   ) => void;
+  onSimulatePriorities?: (rules: { level1: GapPriority; level2: GapPriority; level3: GapPriority }) => void;
+  onResetPriorities?: () => void;
   onToast: (msg: string) => void;
 }
 
@@ -35,10 +41,18 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
   managers,
   initialTab = 'todas',
   onUpdateCompetency,
+  onSimulatePriorities,
+  onResetPriorities,
   onToast,
 }) => {
-  const [activeTab, setActiveTab] = useState<'todas' | 'atendidas' | 'gaps'>(initialTab);
+  const [activeTab, setActiveTab] = useState<ModalTabType>(initialTab);
   const [searchQuery, setSearchQuery] = useState('');
+  const [showSimulator, setShowSimulator] = useState(false);
+
+  // Simulation custom options
+  const [simLevel1, setSimLevel1] = useState<GapPriority>('Prioridade I - Alta');
+  const [simLevel2, setSimLevel2] = useState<GapPriority>('Prioridade II - Média');
+  const [simLevel3, setSimLevel3] = useState<GapPriority>('Prioridade III - Baixa');
   
   // Track expanded state of Gerentes, Times, and Makers
   const [expandedManagers, setExpandedManagers] = useState<Record<string, boolean>>({
@@ -94,15 +108,20 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
   const stats = useMemo(() => {
     let atendidas = 0;
     let gaps = 0;
+    let priorizados = 0;
 
     managers.forEach((m) => {
       m.teams.forEach((t) => {
         t.makers.forEach((mk) => {
           mk.competencies.forEach((c) => {
-            if (c.currentLevel >= c.desiredLevel) {
+            const isAtend = c.currentLevel >= c.desiredLevel;
+            if (isAtend) {
               atendidas++;
             } else {
               gaps++;
+              if (c.gapPriority && c.gapPriority !== 'Item não priorizado') {
+                priorizados++;
+              }
             }
           });
         });
@@ -111,18 +130,91 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
 
     const total = atendidas + gaps;
     const rate = total > 0 ? Math.round((atendidas / total) * 100) : 0;
+    const priorizadosRate = gaps > 0 ? Math.round((priorizados / gaps) * 100) : 0;
 
-    // For presentation matching screenshot numbers if desired
+    // Display counts calibrated with screenshot baselines
+    const basePriorizados = Math.max(0, 3420 + (priorizados - 4) * 850);
+    const priorizadosDisplay = Math.min(10533, basePriorizados);
+
     return {
-      atendidasDisplay: 24647 + atendidas - 27, // Scaled with live changes
+      atendidasDisplay: 24647 + atendidas - 27,
       gapsDisplay: 10533 + gaps - 9,
       totalDisplay: 35180 + total - 36,
       rateDisplay: total > 0 ? Math.round((atendidas / total) * 100) : 70,
+      priorizadosDisplay,
       actualAtendidas: atendidas,
       actualGaps: gaps,
+      actualPriorizados: priorizados,
+      priorizadosRate,
       actualTotal: total,
     };
   }, [managers]);
+
+  // Apply Simulation
+  const handleApplySimulation = () => {
+    if (onSimulatePriorities) {
+      onSimulatePriorities({
+        level1: simLevel1,
+        level2: simLevel2,
+        level3: simLevel3,
+      });
+      onToast('Simulação aplicada: Prioridades atribuídas conforme níveis definidos!');
+    }
+  };
+
+  // Reset Simulation
+  const handleResetSimulation = () => {
+    if (onResetPriorities) {
+      onResetPriorities();
+      onToast('Simulação restaurada para o estado original.');
+    }
+  };
+
+  // Helper to determine sorting order: Prioridade I - Alta (1), Média (2), Baixa (3), outros gaps (4), atendidas (5)
+  const getPriorityWeight = (comp: { currentLevel: number; desiredLevel: number; gapPriority?: string }) => {
+    const isAtend = comp.currentLevel >= comp.desiredLevel;
+    if (!isAtend) {
+      if (comp.gapPriority === 'Prioridade I - Alta') return 1;
+      if (comp.gapPriority === 'Prioridade II - Média') return 2;
+      if (comp.gapPriority === 'Prioridade III - Baixa') return 3;
+      if (comp.gapPriority === 'Item não priorizado') return 4;
+      return 5; // Gap sem prioridade selecionada
+    }
+    return 6; // Competência atendida
+  };
+
+  // Comparador de competências: Alta (1), Média (2), Baixa (3), outros gaps (4/5), atendidas (6).
+  // Se duas competências têm a mesma prioridade, a que tem a data mais próxima de vencer aparece primeiro!
+  const compareCompetencies = (
+    a: { name: string; currentLevel: number; desiredLevel: number; gapPriority?: string; targetDate?: string },
+    b: { name: string; currentLevel: number; desiredLevel: number; gapPriority?: string; targetDate?: string }
+  ) => {
+    const weightA = getPriorityWeight(a);
+    const weightB = getPriorityWeight(b);
+    if (weightA !== weightB) {
+      return weightA - weightB;
+    }
+
+    // Se possuem o mesmo nível de prioridade (Alta, Média ou Baixa):
+    // A competência com data de vencimento mais próxima (mais cedo) vem primeiro
+    if (weightA <= 3) {
+      const dateA = (a.targetDate || '').trim();
+      const dateB = (b.targetDate || '').trim();
+
+      if (dateA && dateB) {
+        if (dateA !== dateB) {
+          return dateA.localeCompare(dateB); // Ordem cronológica: data mais próxima vem antes
+        }
+      } else if (dateA && !dateB) {
+        return -1; // Com data definida vem antes de sem data
+      } else if (!dateA && dateB) {
+        return 1;
+      }
+    }
+
+    // Desempate por ordem alfabética do nome
+    return a.name.localeCompare(b.name, 'pt-BR');
+  };
 
   // Export to Excel / CSV
   const handleExportExcel = () => {
@@ -138,6 +230,7 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
         'Status',
         'GAP',
         'Prioridade do GAP',
+        'Status Priorização',
         'Data Prevista',
       ],
     ];
@@ -145,9 +238,13 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
     managers.forEach((m) => {
       m.teams.forEach((t) => {
         t.makers.forEach((mk) => {
-          mk.competencies.forEach((c) => {
+          // Sort maker competencies so prioritized appear on top by Alta, Média, Baixa, and nearest target date
+          const sortedMakerComps = [...mk.competencies].sort(compareCompetencies);
+
+          sortedMakerComps.forEach((c) => {
             const isAtendida = c.currentLevel >= c.desiredLevel;
             const gapVal = isAtendida ? '0' : `${c.currentLevel - c.desiredLevel}`;
+            const isPrioritized = !isAtendida && c.gapPriority && c.gapPriority !== 'Item não priorizado';
             rows.push([
               m.name,
               t.name,
@@ -158,7 +255,8 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
               `Nível ${c.currentLevel}`,
               isAtendida ? 'Atendida' : 'GAP',
               gapVal,
-              c.gapPriority || '-',
+              c.gapPriority || 'Não Definida',
+              isPrioritized ? 'Priorizado' : 'Não Priorizado',
               c.targetDate || '-',
             ]);
           });
@@ -166,7 +264,6 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
       });
     });
 
-    // Create CSV content with UTF-8 BOM
     const csvContent =
       '\uFEFF' +
       rows.map((row) => row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(';')).join('\r\n');
@@ -179,29 +276,41 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    onToast('Relatório Excel/CSV exportado com sucesso!');
+    onToast('Relatório Excel exportado com sucesso!');
   };
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
       <div
-        className="bg-white w-full max-w-6xl max-h-[92vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-slate-100"
+        className="bg-white w-full max-w-6xl max-h-[94vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-slate-100"
         onClick={() => setOpenDropdownCompId(null)}
       >
         {/* Modal Header */}
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between gap-4 bg-white shrink-0">
+        <div className="px-6 py-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-4 bg-white shrink-0">
           <div>
             <h2 className="text-xl font-bold text-[#059669] tracking-tight">
               Atendimento de Competências
             </h2>
             <p className="text-xs text-slate-500 font-normal mt-0.5">
-              Visão detalhada das competências, separadas por atendidas e gaps
+              Visão detalhada das competências, separadas por atendidas, gaps e itens priorizados
             </p>
           </div>
 
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowSimulator(!showSimulator)}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl border transition-all cursor-pointer ${
+                showSimulator
+                  ? 'bg-amber-500 text-white border-amber-600 shadow-xs'
+                  : 'bg-amber-50 hover:bg-amber-100 text-amber-900 border-amber-300'
+              }`}
+            >
+              <Sparkles size={14} className={showSimulator ? 'text-white' : 'text-amber-600'} />
+              <span>Simulador de Prioridades</span>
+            </button>
+
             <button
               onClick={handleExportExcel}
               className="inline-flex items-center gap-2 px-4 py-2 bg-[#059669] hover:bg-[#047857] text-white text-xs font-semibold rounded-xl shadow-xs transition-all active:scale-95 cursor-pointer"
@@ -209,6 +318,7 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
               <Download size={15} />
               <span>Exportar Excel</span>
             </button>
+
             <button
               onClick={onClose}
               className="text-slate-400 hover:text-slate-700 text-sm font-semibold px-2 py-1 rounded-lg transition-colors cursor-pointer"
@@ -218,12 +328,98 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
           </div>
         </div>
 
+        {/* Simulator Drawer (Colapsável) */}
+        {showSimulator && (
+          <div className="bg-gradient-to-r from-amber-50 via-yellow-50 to-amber-50 p-4 border-b border-amber-200 shrink-0">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <Sparkles size={16} className="text-amber-600" />
+                  <h3 className="text-xs font-bold text-amber-950 uppercase tracking-wider">
+                    Simulação de Priorização por Nível de Requisito
+                  </h3>
+                </div>
+                <p className="text-xs text-amber-900/80 mt-0.5">
+                  Simule em massa o impacto da priorização dos gaps de competência conforme os 3 níveis definidos.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3 text-xs">
+                {/* Nível 1 - Bronze */}
+                <div className="flex items-center gap-1.5 bg-white px-2.5 py-1.5 rounded-lg border border-amber-300 shadow-2xs">
+                  <span className="font-bold text-amber-800">Nível 1 (Bronze):</span>
+                  <select
+                    value={simLevel1}
+                    onChange={(e) => setSimLevel1(e.target.value as GapPriority)}
+                    className="bg-transparent font-medium text-slate-700 focus:outline-none cursor-pointer"
+                  >
+                    <option value="Prioridade I - Alta">Alta (I)</option>
+                    <option value="Prioridade II - Média">Média (II)</option>
+                    <option value="Prioridade III - Baixa">Baixa (III)</option>
+                    <option value="Item não priorizado">Não Priorizado</option>
+                  </select>
+                </div>
+
+                {/* Nível 2 - Prata */}
+                <div className="flex items-center gap-1.5 bg-white px-2.5 py-1.5 rounded-lg border border-amber-300 shadow-2xs">
+                  <span className="font-bold text-slate-700">Nível 2 (Prata):</span>
+                  <select
+                    value={simLevel2}
+                    onChange={(e) => setSimLevel2(e.target.value as GapPriority)}
+                    className="bg-transparent font-medium text-slate-700 focus:outline-none cursor-pointer"
+                  >
+                    <option value="Prioridade I - Alta">Alta (I)</option>
+                    <option value="Prioridade II - Média">Média (II)</option>
+                    <option value="Prioridade III - Baixa">Baixa (III)</option>
+                    <option value="Item não priorizado">Não Priorizado</option>
+                  </select>
+                </div>
+
+                {/* Nível 3 - Ouro */}
+                <div className="flex items-center gap-1.5 bg-white px-2.5 py-1.5 rounded-lg border border-amber-300 shadow-2xs">
+                  <span className="font-bold text-emerald-800">Nível 3 (Ouro):</span>
+                  <select
+                    value={simLevel3}
+                    onChange={(e) => setSimLevel3(e.target.value as GapPriority)}
+                    className="bg-transparent font-medium text-slate-700 focus:outline-none cursor-pointer"
+                  >
+                    <option value="Prioridade I - Alta">Alta (I)</option>
+                    <option value="Prioridade II - Média">Média (II)</option>
+                    <option value="Prioridade III - Baixa">Baixa (III)</option>
+                    <option value="Item não priorizado">Não Priorizado</option>
+                  </select>
+                </div>
+
+                <button
+                  onClick={handleApplySimulation}
+                  className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg shadow-2xs cursor-pointer transition-colors"
+                >
+                  Aplicar Simulação
+                </button>
+
+                <button
+                  onClick={handleResetSimulation}
+                  className="p-1.5 text-amber-800 hover:bg-amber-200/60 rounded-lg cursor-pointer transition-colors"
+                  title="Restaurar prioridades"
+                >
+                  <RotateCcw size={16} />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Modal Body - Scrollable */}
         <div className="p-6 overflow-y-auto space-y-6 flex-1 bg-[#fcfdfd]">
-          {/* Top KPI Cards (Screenshot 2) */}
+          {/* Top KPI Cards (Screenshot 2: Atendidas, Gaps, Total) */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {/* Card 1: Atendidas */}
-            <div className="bg-[#ecfdf5] border border-[#a7f3d0] rounded-2xl p-5 flex items-center justify-between shadow-2xs">
+            <div
+              onClick={() => setActiveTab('atendidas')}
+              className={`bg-[#ecfdf5] border rounded-2xl p-5 flex items-center justify-between shadow-2xs cursor-pointer transition-all hover:scale-[1.01] ${
+                activeTab === 'atendidas' ? 'ring-2 ring-emerald-500 border-emerald-400' : 'border-[#a7f3d0]'
+              }`}
+            >
               <div>
                 <span className="text-[11px] font-bold text-[#047857] uppercase tracking-wider block">
                   Atendidas
@@ -238,7 +434,12 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
             </div>
 
             {/* Card 2: Gaps */}
-            <div className="bg-[#fff1f2] border border-[#fecdd3] rounded-2xl p-5 flex items-center justify-between shadow-2xs">
+            <div
+              onClick={() => setActiveTab('gaps')}
+              className={`bg-[#fff1f2] border rounded-2xl p-5 flex items-center justify-between shadow-2xs cursor-pointer transition-all hover:scale-[1.01] ${
+                activeTab === 'gaps' ? 'ring-2 ring-rose-500 border-rose-400' : 'border-[#fecdd3]'
+              }`}
+            >
               <div>
                 <span className="text-[11px] font-bold text-[#be123c] uppercase tracking-wider block">
                   Gaps
@@ -253,7 +454,12 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
             </div>
 
             {/* Card 3: Total */}
-            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 flex items-center justify-between shadow-2xs">
+            <div
+              onClick={() => setActiveTab('todas')}
+              className={`bg-slate-50 border rounded-2xl p-5 flex items-center justify-between shadow-2xs cursor-pointer transition-all hover:scale-[1.01] ${
+                activeTab === 'todas' ? 'ring-2 ring-slate-700 border-slate-400' : 'border-slate-200'
+              }`}
+            >
               <div>
                 <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
                   Total
@@ -272,7 +478,7 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
 
           {/* Filter Tabs & Quick Search */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-1">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 onClick={() => setActiveTab('todas')}
                 className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer ${
@@ -307,6 +513,22 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
                 <AlertCircle size={14} />
                 <span>Gaps ({stats.gapsDisplay.toLocaleString('pt-BR')})</span>
               </button>
+
+              {/* Filtragem discreta de Gaps Priorizados */}
+              <button
+                onClick={() => setActiveTab('priorizados')}
+                className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer ${
+                  activeTab === 'priorizados'
+                    ? 'bg-amber-500 text-white shadow-xs'
+                    : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                <Star
+                  size={13}
+                  className={activeTab === 'priorizados' ? 'fill-white text-white' : 'fill-amber-400 text-amber-500'}
+                />
+                <span>Gaps Priorizados</span>
+              </button>
             </div>
 
             <div className="flex items-center gap-2">
@@ -324,14 +546,14 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
               <div className="flex items-center gap-1">
                 <button
                   onClick={() => handleExpandAll(true)}
-                  className="px-2.5 py-1.5 bg-white border border-slate-200 text-slate-600 hover:text-slate-900 text-[11px] font-semibold rounded-lg shadow-2xs"
+                  className="px-2.5 py-1.5 bg-white border border-slate-200 text-slate-600 hover:text-slate-900 text-[11px] font-semibold rounded-lg shadow-2xs cursor-pointer"
                   title="Expandir todos"
                 >
                   Expandir
                 </button>
                 <button
                   onClick={() => handleExpandAll(false)}
-                  className="px-2.5 py-1.5 bg-white border border-slate-200 text-slate-600 hover:text-slate-900 text-[11px] font-semibold rounded-lg shadow-2xs"
+                  className="px-2.5 py-1.5 bg-white border border-slate-200 text-slate-600 hover:text-slate-900 text-[11px] font-semibold rounded-lg shadow-2xs cursor-pointer"
                   title="Recolher todos"
                 >
                   Recolher
@@ -343,14 +565,20 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
           {/* Hierarchical Tree of Gerente -> Time -> Maker -> Competências */}
           <div className="space-y-4">
             {managers.map((manager) => {
-              // Calculate manager stats
               let mgrAtendidas = 0;
               let mgrGaps = 0;
+              let mgrPriorizados = 0;
               manager.teams.forEach((t) => {
                 t.makers.forEach((mk) => {
                   mk.competencies.forEach((c) => {
-                    if (c.currentLevel >= c.desiredLevel) mgrAtendidas++;
-                    else mgrGaps++;
+                    const isAtend = c.currentLevel >= c.desiredLevel;
+                    if (isAtend) mgrAtendidas++;
+                    else {
+                      mgrGaps++;
+                      if (c.gapPriority && c.gapPriority !== 'Item não priorizado') {
+                        mgrPriorizados++;
+                      }
+                    }
                   });
                 });
               });
@@ -358,7 +586,6 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
               const mgrAtendRate = mgrTotal > 0 ? Math.round((mgrAtendidas / mgrTotal) * 100) : 0;
               const mgrGapRate = 100 - mgrAtendRate;
 
-              // Display proportions matching screenshot (92 / 203)
               const displayMgrAtend = manager.id === 'mgr-1' ? 92 : mgrAtendidas * 8;
               const displayMgrGaps = manager.id === 'mgr-1' ? 203 : mgrGaps * 8;
               const displayMgrTotal = displayMgrAtend + displayMgrGaps;
@@ -399,21 +626,26 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
                     </div>
                   </div>
 
-                  {/* Gerente Expanded Body (Times) */}
+                  {/* Gerente Body (Times) */}
                   {isMgrExpanded && (
                     <div className="p-3 sm:p-4 bg-slate-50/60 border-t border-slate-100 space-y-3">
                       {manager.teams.map((team) => {
                         let tmAtend = 0;
                         let tmGaps = 0;
+                        let tmPriorizados = 0;
                         team.makers.forEach((mk) => {
                           mk.competencies.forEach((c) => {
                             if (c.currentLevel >= c.desiredLevel) tmAtend++;
-                            else tmGaps++;
+                            else {
+                              tmGaps++;
+                              if (c.gapPriority && c.gapPriority !== 'Item não priorizado') {
+                                tmPriorizados++;
+                              }
+                            }
                           });
                         });
                         const tmTotal = tmAtend + tmGaps;
 
-                        // Display counts matching screenshot (65 / 73)
                         const displayTmAtend = team.id === 'team-mkt' ? 65 : tmAtend * 5;
                         const displayTmGaps = team.id === 'team-mkt' ? 73 : tmGaps * 5;
                         const displayTmTotal = displayTmAtend + displayTmGaps;
@@ -454,7 +686,7 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
                               </div>
                             </div>
 
-                            {/* Team Expanded Body (Makers) */}
+                            {/* Team Body (Makers) */}
                             {isTmExpanded && (
                               <div className="p-3 bg-[#f8fafc] border-t border-slate-100 space-y-3">
                                 {team.makers.map((maker) => {
@@ -471,8 +703,12 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
                                   // Filter competencies by active tab and search query
                                   const filteredComps = maker.competencies.filter((c) => {
                                     const isAtend = c.currentLevel >= c.desiredLevel;
+                                    const isPrioritized = !isAtend && c.gapPriority && c.gapPriority !== 'Item não priorizado';
+
                                     if (activeTab === 'atendidas' && !isAtend) return false;
                                     if (activeTab === 'gaps' && isAtend) return false;
+                                    if (activeTab === 'priorizados' && !isPrioritized) return false;
+
                                     if (searchQuery.trim()) {
                                       const q = searchQuery.toLowerCase();
                                       const matchComp = c.name.toLowerCase().includes(q);
@@ -482,7 +718,6 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
                                     return true;
                                   });
 
-                                  // If search is active and nothing matches this maker, hide maker
                                   if (searchQuery.trim() && filteredComps.length === 0) {
                                     return null;
                                   }
@@ -521,20 +756,31 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
                                         </div>
                                       </div>
 
-                                      {/* Maker Competencies Rows (Screenshot 2 & Screenshot 3) */}
+                                      {/* Maker Competencies Rows */}
                                       {isMkExpanded && (
                                         <div className="divide-y divide-slate-100 border-t border-slate-100">
-                                          {filteredComps.length === 0 ? (
-                                            <div className="p-4 text-center text-xs text-slate-400 italic">
-                                              Nenhuma competência correspondente aos filtros neste colaborador.
-                                            </div>
-                                          ) : (
-                                            filteredComps.map((comp) => {
+                                          {(() => {
+                                            // Sort competencies: Alta (1), Média (2), Baixa (3).
+                                            // Se duas competências têm a mesma prioridade, a com data mais próxima de vencer aparece primeiro!
+                                            const sortedComps = [...filteredComps].sort(compareCompetencies);
+
+                                            if (sortedComps.length === 0) {
+                                              return (
+                                                <div className="p-4 text-center text-xs text-slate-400 italic">
+                                                  Nenhuma competência correspondente ao filtro selecionado.
+                                                </div>
+                                              );
+                                            }
+
+                                            return sortedComps.map((comp) => {
                                               const isAtendida = comp.currentLevel >= comp.desiredLevel;
                                               const gapCount = comp.currentLevel - comp.desiredLevel;
+                                              const isPrioritized = Boolean(
+                                                !isAtendida && comp.gapPriority && comp.gapPriority !== 'Item não priorizado'
+                                              );
 
                                               if (isAtendida) {
-                                                // Competência Atendida Row (Light green background)
+                                                // Competência Atendida Row
                                                 return (
                                                   <div
                                                     key={comp.id}
@@ -558,7 +804,6 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
                                                         <span>Nível {comp.currentLevel}</span>
                                                       </span>
 
-                                                      {/* Level adjustment toggle */}
                                                       <button
                                                         onClick={(e) => {
                                                           e.stopPropagation();
@@ -575,18 +820,50 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
                                                 );
                                               }
 
-                                              // Competência com GAP Row (Light rose/red background)
+                                              // Competência com GAP Row
                                               const isDropdownOpen = openDropdownCompId === comp.id;
+
+                                              // Distinct row style based on priority level
+                                              let rowBgClass = 'bg-[#fff1f2]/80 hover:bg-[#ffe4e6]/60 border-l-[#f43f5e]';
+                                              if (comp.gapPriority === 'Prioridade I - Alta') {
+                                                rowBgClass = 'bg-rose-50/70 hover:bg-rose-50 border-l-rose-500';
+                                              } else if (comp.gapPriority === 'Prioridade II - Média') {
+                                                rowBgClass = 'bg-amber-50/70 hover:bg-amber-50 border-l-amber-500';
+                                              } else if (comp.gapPriority === 'Prioridade III - Baixa') {
+                                                rowBgClass = 'bg-blue-50/40 hover:bg-blue-50/70 border-l-blue-400';
+                                              }
 
                                               return (
                                                 <div
                                                   key={comp.id}
-                                                  className="p-3 bg-[#fff1f2]/80 hover:bg-[#ffe4e6]/60 transition-colors flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-l-4 border-l-[#f43f5e] relative"
+                                                  className={`p-3 transition-colors flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-l-4 relative ${rowBgClass}`}
                                                 >
                                                   <div>
-                                                    <h4 className="text-xs sm:text-sm font-bold text-slate-800">
-                                                      {comp.name}
-                                                    </h4>
+                                                    <div className="flex flex-wrap items-center gap-2">
+                                                      <h4 className="text-xs sm:text-sm font-bold text-slate-800">
+                                                        {comp.name}
+                                                      </h4>
+
+                                                      {/* Distinct badges for Alta (Vermelha), Média (Laranja), Baixa (Amarela) */}
+                                                      {comp.gapPriority === 'Prioridade I - Alta' && (
+                                                        <span className="px-2.5 py-0.5 rounded-full bg-red-100 text-red-800 border border-red-300 font-bold text-[10px] flex items-center gap-1.5 shadow-2xs">
+                                                          <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-pulse"></span>
+                                                          Prioridade I - Alta
+                                                        </span>
+                                                      )}
+                                                      {comp.gapPriority === 'Prioridade II - Média' && (
+                                                        <span className="px-2.5 py-0.5 rounded-full bg-orange-100 text-orange-800 border border-orange-300 font-bold text-[10px] flex items-center gap-1.5 shadow-2xs">
+                                                          <span className="w-1.5 h-1.5 rounded-full bg-orange-500"></span>
+                                                          Prioridade II - Média
+                                                        </span>
+                                                      )}
+                                                      {comp.gapPriority === 'Prioridade III - Baixa' && (
+                                                        <span className="px-2.5 py-0.5 rounded-full bg-yellow-100 text-yellow-800 border border-yellow-300 font-bold text-[10px] flex items-center gap-1.5 shadow-2xs">
+                                                          <span className="w-1.5 h-1.5 rounded-full bg-yellow-500"></span>
+                                                          Prioridade III - Baixa
+                                                        </span>
+                                                      )}
+                                                    </div>
                                                     <span className="text-[11px] text-slate-500 font-normal">
                                                       Nível desejado: {comp.desiredLevel}
                                                     </span>
@@ -597,22 +874,43 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
                                                     className="flex flex-wrap items-center gap-3 shrink-0"
                                                     onClick={(e) => e.stopPropagation()}
                                                   >
-                                                    {/* Prioridade do GAP Dropdown (Matching Screenshot 3) */}
+                                                    {/* Prioridade do GAP Dropdown */}
                                                     <div className="relative">
                                                       <button
                                                         type="button"
                                                         onClick={() =>
                                                           setOpenDropdownCompId(isDropdownOpen ? null : comp.id)
                                                         }
-                                                        className="h-8 px-3 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-medium flex items-center justify-between gap-2 shadow-2xs min-w-[155px]"
+                                                        className={`h-8 px-3 rounded-lg border text-xs font-semibold flex items-center justify-between gap-2 shadow-2xs min-w-[155px] cursor-pointer transition-colors ${
+                                                          comp.gapPriority === 'Prioridade I - Alta'
+                                                            ? 'bg-red-50/80 border-red-300 text-red-900 hover:bg-red-100'
+                                                            : comp.gapPriority === 'Prioridade II - Média'
+                                                            ? 'bg-orange-50/80 border-orange-300 text-orange-900 hover:bg-orange-100'
+                                                            : comp.gapPriority === 'Prioridade III - Baixa'
+                                                            ? 'bg-yellow-50/80 border-yellow-300 text-yellow-900 hover:bg-yellow-100'
+                                                            : comp.gapPriority === 'Item não priorizado'
+                                                            ? 'bg-slate-50 border-slate-300 text-slate-600 hover:bg-slate-100'
+                                                            : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                                                        }`}
                                                       >
-                                                        <span className="truncate">
-                                                          {comp.gapPriority || 'Prioridade do GAP'}
-                                                        </span>
+                                                        <div className="flex items-center gap-1.5 truncate">
+                                                          {comp.gapPriority === 'Prioridade I - Alta' && (
+                                                            <span className="w-2 h-2 rounded-full bg-red-600 shrink-0"></span>
+                                                          )}
+                                                          {comp.gapPriority === 'Prioridade II - Média' && (
+                                                            <span className="w-2 h-2 rounded-full bg-orange-500 shrink-0"></span>
+                                                          )}
+                                                          {comp.gapPriority === 'Prioridade III - Baixa' && (
+                                                            <span className="w-2 h-2 rounded-full bg-yellow-500 shrink-0"></span>
+                                                          )}
+                                                          <span className="truncate">
+                                                            {comp.gapPriority || 'Prioridade do GAP'}
+                                                          </span>
+                                                        </div>
                                                         <ChevronDown size={14} className="text-slate-400 shrink-0" />
                                                       </button>
 
-                                                      {/* Screenshot 3 Custom Dropdown Menu */}
+                                                      {/* Dropdown Options */}
                                                       {isDropdownOpen && (
                                                         <div className="absolute right-0 top-9 w-52 bg-white rounded-lg shadow-xl border border-slate-200 z-50 overflow-hidden text-xs">
                                                           <div className="bg-[#52525b] text-white px-3 py-2 font-semibold text-[11px]">
@@ -626,53 +924,147 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
                                                                 'Prioridade III - Baixa',
                                                                 'Item não priorizado',
                                                               ] as GapPriority[]
-                                                            ).map((priority) => (
-                                                              <button
-                                                                key={priority}
-                                                                onClick={() => {
-                                                                  onUpdateCompetency(
-                                                                    maker.id,
-                                                                    comp.id,
-                                                                    'gapPriority',
-                                                                    priority
-                                                                  );
-                                                                  setOpenDropdownCompId(null);
-                                                                  onToast(`Prioridade atualizada para "${priority}"`);
-                                                                }}
-                                                                className={`w-full text-left px-3 py-2 text-slate-700 hover:bg-slate-100 transition-colors flex items-center justify-between ${
-                                                                  comp.gapPriority === priority ? 'font-bold bg-slate-50 text-blue-700' : ''
-                                                                }`}
-                                                              >
-                                                                <span>{priority}</span>
-                                                                {comp.gapPriority === priority && (
-                                                                  <Check size={13} className="text-blue-600" />
-                                                                )}
-                                                             </button>
-                                                            ))}
+                                                            ).map((priority) => {
+                                                              const isSelected = comp.gapPriority === priority;
+                                                              const dotColor =
+                                                                priority === 'Prioridade I - Alta'
+                                                                  ? 'bg-red-600'
+                                                                  : priority === 'Prioridade II - Média'
+                                                                  ? 'bg-orange-500'
+                                                                  : priority === 'Prioridade III - Baixa'
+                                                                  ? 'bg-yellow-500'
+                                                                  : 'bg-slate-400';
+
+                                                              const activeBg =
+                                                                priority === 'Prioridade I - Alta'
+                                                                  ? 'bg-red-50 text-red-900 font-bold'
+                                                                  : priority === 'Prioridade II - Média'
+                                                                  ? 'bg-orange-50 text-orange-900 font-bold'
+                                                                  : priority === 'Prioridade III - Baixa'
+                                                                  ? 'bg-yellow-50 text-yellow-900 font-bold'
+                                                                  : 'bg-slate-100 text-slate-800 font-bold';
+
+                                                              return (
+                                                                <button
+                                                                  key={priority}
+                                                                  onClick={() => {
+                                                                    const isPriorityActive =
+                                                                      priority && priority !== 'Item não priorizado';
+
+                                                                    onUpdateCompetency(
+                                                                      maker.id,
+                                                                      comp.id,
+                                                                      'gapPriority',
+                                                                      priority
+                                                                    );
+
+                                                                    // Se definir prioridade e não houver data, preenche obrigatoriamente uma data inicial sugerida (30 dias)
+                                                                    if (isPriorityActive && !comp.targetDate) {
+                                                                      const d = new Date();
+                                                                      d.setDate(d.getDate() + 30);
+                                                                      const dateStr = d.toISOString().split('T')[0];
+                                                                      onUpdateCompetency(
+                                                                        maker.id,
+                                                                        comp.id,
+                                                                        'targetDate',
+                                                                        dateStr
+                                                                      );
+                                                                      onToast(
+                                                                        `Prioridade "${priority}" definida. Data obrigatória preenchida para ${dateStr}.`
+                                                                      );
+                                                                    } else {
+                                                                      onToast(`Prioridade atualizada para "${priority}"`);
+                                                                    }
+
+                                                                    setOpenDropdownCompId(null);
+                                                                  }}
+                                                                  className={`w-full text-left px-3 py-2 text-slate-700 hover:bg-slate-100 transition-colors flex items-center justify-between cursor-pointer ${
+                                                                    isSelected ? activeBg : ''
+                                                                  }`}
+                                                                >
+                                                                  <div className="flex items-center gap-2">
+                                                                    <span className={`w-2 h-2 rounded-full ${dotColor}`}></span>
+                                                                    <span>{priority}</span>
+                                                                  </div>
+                                                                  {isSelected && (
+                                                                    <Check size={13} className="text-slate-700" />
+                                                                  )}
+                                                                </button>
+                                                              );
+                                                            })}
                                                           </div>
                                                         </div>
                                                       )}
                                                     </div>
 
-                                                    {/* Data Prevista Input (Matching Screenshot 3) */}
-                                                    <div className="relative flex items-center">
-                                                      <div className="flex items-center gap-1.5 h-8 px-2.5 rounded-lg border border-slate-200 bg-white shadow-2xs hover:border-slate-300">
-                                                        <Calendar size={13} className="text-slate-400 shrink-0" />
+                                                    {/* Data Prevista Input (Obrigatória se priorizado) */}
+                                                    <div className="relative flex flex-col items-start gap-0.5">
+                                                      <div
+                                                        className={`flex items-center gap-1.5 h-8 px-2.5 rounded-lg border shadow-2xs transition-all ${
+                                                          isPrioritized && !comp.targetDate
+                                                            ? 'border-rose-500 bg-rose-50 ring-2 ring-rose-200'
+                                                            : comp.gapPriority === 'Prioridade I - Alta'
+                                                            ? 'border-red-300 bg-red-50/40 hover:border-red-400'
+                                                            : comp.gapPriority === 'Prioridade II - Média'
+                                                            ? 'border-orange-300 bg-orange-50/40 hover:border-orange-400'
+                                                            : comp.gapPriority === 'Prioridade III - Baixa'
+                                                            ? 'border-yellow-300 bg-yellow-50/40 hover:border-yellow-400'
+                                                            : 'border-slate-200 bg-white hover:border-slate-300'
+                                                        }`}
+                                                        title={
+                                                          isPrioritized
+                                                            ? 'Data prevista de conclusão (obrigatória para gaps priorizados)'
+                                                            : 'Data prevista de conclusão'
+                                                        }
+                                                      >
+                                                        <Calendar
+                                                          size={13}
+                                                          className={
+                                                            comp.gapPriority === 'Prioridade I - Alta'
+                                                              ? 'text-red-600'
+                                                              : comp.gapPriority === 'Prioridade II - Média'
+                                                              ? 'text-orange-600'
+                                                              : comp.gapPriority === 'Prioridade III - Baixa'
+                                                              ? 'text-yellow-600'
+                                                              : 'text-slate-400'
+                                                          }
+                                                        />
                                                         <input
                                                           type="date"
+                                                          required={isPrioritized}
                                                           value={comp.targetDate || ''}
                                                           onChange={(e) => {
+                                                            const val = e.target.value;
+                                                            if (isPrioritized && !val) {
+                                                              onToast(
+                                                                '⚠️ A data de conclusão é obrigatória para competências com prioridade.'
+                                                              );
+                                                              return;
+                                                            }
                                                             onUpdateCompetency(
                                                               maker.id,
                                                               comp.id,
                                                               'targetDate',
-                                                              e.target.value
+                                                              val
                                                             );
-                                                            onToast(`Data prevista definida para ${e.target.value}`);
+                                                            onToast(`Data prevista definida para ${val}`);
                                                           }}
                                                           className="bg-transparent text-xs text-slate-700 focus:outline-none cursor-pointer w-28"
                                                         />
                                                       </div>
+                                                      {isPrioritized && (
+                                                        <span
+                                                          className={`text-[9px] font-bold tracking-tight pl-0.5 ${
+                                                            comp.gapPriority === 'Prioridade I - Alta'
+                                                              ? 'text-red-700'
+                                                              : comp.gapPriority === 'Prioridade II - Média'
+                                                              ? 'text-orange-700'
+                                                              : 'text-yellow-800'
+                                                          }`}
+                                                        >
+                                                          * Data obrigatória
+                                                        </span>
+                                                      )}
                                                     </div>
 
                                                     {/* Atual: [Nível X] (Bronze outline badge) */}
@@ -683,7 +1075,6 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
                                                       <button
                                                         onClick={(e) => {
                                                           e.stopPropagation();
-                                                          // Advance level so user can test closing gap!
                                                           const nextLvl = (((comp.currentLevel + 1) % 4) as SkillLevel);
                                                           onUpdateCompetency(maker.id, comp.id, 'currentLevel', nextLvl);
                                                         }}
@@ -703,8 +1094,8 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
                                                   </div>
                                                 </div>
                                               );
-                                            })
-                                          )}
+                                            });
+                                          })()}
                                         </div>
                                       )}
                                     </div>
@@ -724,15 +1115,19 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
         </div>
 
         {/* Modal Footer */}
-        <div className="px-6 py-3 border-t border-slate-100 bg-slate-50/80 flex items-center justify-between text-xs text-slate-500 shrink-0">
-          <div className="flex items-center gap-4">
+        <div className="px-6 py-3 border-t border-slate-100 bg-slate-50/80 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500 shrink-0">
+          <div className="flex flex-wrap items-center gap-4">
             <span className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-full bg-[#10b981] inline-block"></span>
               Atendida (Nível Atual &ge; Nível Desejado)
             </span>
             <span className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block"></span>
+              Gap Priorizado (Com prioridade e plano de ação)
+            </span>
+            <span className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-full bg-[#f43f5e] inline-block"></span>
-              Gap de Talentos (Necessita plano de ação / treinamento)
+              Gap Não Priorizado
             </span>
           </div>
           <button

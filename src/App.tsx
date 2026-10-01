@@ -24,7 +24,7 @@ export default function App() {
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalInitialTab, setModalInitialTab] = useState<'todas' | 'atendidas' | 'gaps'>('todas');
+  const [modalInitialTab, setModalInitialTab] = useState<'todas' | 'atendidas' | 'gaps' | 'priorizados'>('todas');
 
   // Managers State
   const [managers, setManagers] = useState<Manager[]>(initialManagers);
@@ -40,6 +40,7 @@ export default function App() {
     category: 'Todas',
     mandatory: 'Todas',
     target: 'Todas',
+    priorityFilter: 'Todas',
     searchQuery: '',
   };
   const [filters, setFilters] = useState<FilterState>(initialFilterState);
@@ -108,6 +109,13 @@ export default function App() {
                   if (filters.mandatory === 'Sim' && !c.isMandatory) return false;
                   if (filters.mandatory === 'Não' && c.isMandatory) return false;
                   if (filters.target !== 'Todas' && c.targetPeriod !== filters.target) return false;
+
+                  const isAtend = c.currentLevel >= c.desiredLevel;
+                  const isPrioritized = !isAtend && c.gapPriority && c.gapPriority !== 'Item não priorizado';
+
+                  if (filters.priorityFilter === 'Sim' && !isPrioritized) return false;
+                  if (filters.priorityFilter === 'Não' && isPrioritized) return false;
+
                   return true;
                 });
                 return { ...mk, competencies: matchingComps };
@@ -127,6 +135,7 @@ export default function App() {
   const overallStats = useMemo(() => {
     let atendidas = 0;
     let gaps = 0;
+    let priorizados = 0;
     let mentorsCount = 0;
     let totalMakersCount = 0;
 
@@ -136,10 +145,14 @@ export default function App() {
           totalMakersCount++;
           let hasGoldCompetency = false;
           mk.competencies.forEach((c) => {
-            if (c.currentLevel >= c.desiredLevel) {
+            const isAtend = c.currentLevel >= c.desiredLevel;
+            if (isAtend) {
               atendidas++;
             } else {
               gaps++;
+              if (c.gapPriority && c.gapPriority !== 'Item não priorizado') {
+                priorizados++;
+              }
             }
             if (c.currentLevel === 3) {
               hasGoldCompetency = true;
@@ -153,8 +166,6 @@ export default function App() {
     });
 
     const total = atendidas + gaps;
-    
-    // When no specific filter is active, default to exact numbers from screenshot 1: 70.06% and 29.94%
     const isFiltered = Object.entries(filters).some(([k, v]) => k !== 'searchQuery' && v !== 'Todas' && v !== 'Todos');
 
     let atendPct = 70.06;
@@ -167,17 +178,23 @@ export default function App() {
       mentorPct = totalMakersCount > 0 ? (mentorsCount / totalMakersCount) * 100 : 0;
     }
 
+    const priorizadosRate = gaps > 0 ? (priorizados / gaps) * 100 : 32.4;
+    const priorizadosDisplayCount = Math.max(0, 3420 + (priorizados - 4) * 850);
+
     return {
       atendimentoRate: atendPct,
       gapRate: gapPct,
       mentoriaRate: mentorPct,
+      priorizadosCount: priorizadosDisplayCount,
+      priorizadosRate,
       atendidas,
       gaps,
+      priorizados,
       total,
     };
   }, [filteredManagers, filters]);
 
-  // Handle competency updates from modal (Gap priority, target date, level advance)
+  // Handle competency updates from modal
   const handleUpdateCompetency = (
     makerId: string,
     compId: string,
@@ -207,7 +224,48 @@ export default function App() {
     );
   };
 
-  const handleOpenModal = (tab: 'todas' | 'atendidas' | 'gaps') => {
+  // Simulation handler: assigns priorities based on desired level
+  const handleSimulatePriorities = (rules: {
+    level1: GapPriority;
+    level2: GapPriority;
+    level3: GapPriority;
+  }) => {
+    setManagers((prev) =>
+      prev.map((mgr) => ({
+        ...mgr,
+        teams: mgr.teams.map((tm) => ({
+          ...tm,
+          makers: tm.makers.map((mk) => ({
+            ...mk,
+            competencies: mk.competencies.map((comp) => {
+              const isGap = comp.currentLevel < comp.desiredLevel;
+              if (!isGap) return comp;
+              let assigned = comp.gapPriority;
+              if (comp.desiredLevel === 1) assigned = rules.level1;
+              else if (comp.desiredLevel === 2) assigned = rules.level2;
+              else if (comp.desiredLevel === 3) assigned = rules.level3;
+
+              let targetDate = comp.targetDate;
+              if (assigned && assigned !== 'Item não priorizado' && !targetDate) {
+                const days = comp.desiredLevel === 1 ? 30 : comp.desiredLevel === 2 ? 60 : 90;
+                const d = new Date();
+                d.setDate(d.getDate() + days);
+                targetDate = d.toISOString().split('T')[0];
+              }
+
+              return { ...comp, gapPriority: assigned, targetDate };
+            }),
+          })),
+        })),
+      }))
+    );
+  };
+
+  const handleResetPriorities = () => {
+    setManagers(initialManagers);
+  };
+
+  const handleOpenModal = (tab: 'todas' | 'atendidas' | 'gaps' | 'priorizados') => {
     setModalInitialTab(tab);
     setIsModalOpen(true);
   };
@@ -244,7 +302,7 @@ export default function App() {
         <div className="max-w-[1400px] mx-auto space-y-6">
           {currentTab === 'treinamentos' && (
             <>
-              {/* Header & Filter Controls (Screenshot 1 top section) */}
+              {/* Header & Filter Controls com Caixa Amarela de Priorização */}
               <HeaderFilters
                 filters={filters}
                 setFilters={setFilters}
@@ -255,7 +313,7 @@ export default function App() {
                 availableOptions={availableOptions}
               />
 
-              {/* KPI Cards (Screenshot 1 middle section) */}
+              {/* KPI Cards (Padrão exato de Tela 1: Atendimento, Gaps, Mentoria) */}
               <KpiCards
                 atendimentoRate={overallStats.atendimentoRate}
                 gapRate={overallStats.gapRate}
@@ -263,7 +321,7 @@ export default function App() {
                 onOpenModal={handleOpenModal}
               />
 
-              {/* Monthly Evolution Chart (Screenshot 1 bottom section) */}
+              {/* Monthly Evolution Chart */}
               <EvolutionChart data={monthlyEvolutionData} />
             </>
           )}
@@ -276,13 +334,15 @@ export default function App() {
         </div>
       </main>
 
-      {/* Competency Modal (Screenshot 2 and Screenshot 3) */}
+      {/* Competency Modal com Caixa Amarela entre Atendidas e Gaps e Simulador */}
       <CompetencyModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         managers={filteredManagers}
         initialTab={modalInitialTab}
         onUpdateCompetency={handleUpdateCompetency}
+        onSimulatePriorities={handleSimulatePriorities}
+        onResetPriorities={handleResetPriorities}
         onToast={(msg) => setToastMessage(msg)}
       />
 

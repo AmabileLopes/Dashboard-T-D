@@ -214,7 +214,7 @@ export const HeaderFilters: React.FC<HeaderFiltersProps> = ({
           </div>
         </div>
 
-        {/* Row 3 - Meta + Action Buttons */}
+        {/* Row 3 - Meta + Yellow Prioritized Filter Box + Action Buttons */}
         <div>
           <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">
             Meta
@@ -234,17 +234,36 @@ export const HeaderFilters: React.FC<HeaderFiltersProps> = ({
           </div>
         </div>
 
-        <div className="sm:col-span-2 lg:col-span-3 flex items-end gap-3 pt-2 sm:pt-0">
+        {/* Filtro Priorizada padronizado como os demais */}
+        <div>
+          <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">
+            Priorizada
+          </label>
+          <div className="relative">
+            <select
+              value={filters.priorityFilter}
+              onChange={(e) => handleChange('priorityFilter', e.target.value as any)}
+              className="w-full bg-white border border-slate-200 text-slate-700 text-xs rounded-xl px-3 py-2.5 pr-8 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition shadow-2xs appearance-none cursor-pointer"
+            >
+              <option value="Todas">Todas</option>
+              <option value="Sim">Sim</option>
+              <option value="Não">Não</option>
+            </select>
+            <ChevronDown size={14} className="absolute right-3 top-3 text-slate-400 pointer-events-none" />
+          </div>
+        </div>
+
+        <div className="sm:col-span-2 lg:col-span-2 flex items-end gap-3 pt-2 sm:pt-0">
           <button
             onClick={onResetFilters}
-            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-50 text-slate-600 text-xs font-semibold transition shadow-2xs"
+            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-50 text-slate-600 text-xs font-semibold transition shadow-2xs cursor-pointer"
           >
             <X size={15} />
             <span>Limpar Filtros</span>
           </button>
           <button
             onClick={onSaveFilters}
-            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-50 text-slate-600 text-xs font-semibold transition shadow-2xs"
+            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-50 text-slate-600 text-xs font-semibold transition shadow-2xs cursor-pointer"
           >
             <BookmarkCheck size={15} className="text-slate-500" />
             <span>Salvar Filtros</span>

@@ -41,6 +41,8 @@ export interface Manager {
   teams: Team[];
 }
 
+export type PriorityFilterOption = 'Todas' | 'Sim' | 'Não';
+
 export interface FilterState {
   directorate: string;
   manager: string;
@@ -51,6 +53,7 @@ export interface FilterState {
   category: string;
   mandatory: string;
   target: string;
+  priorityFilter: PriorityFilterOption;
   searchQuery: string;
 }
 
