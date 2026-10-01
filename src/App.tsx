@@ -291,6 +291,7 @@ export default function App() {
         setCurrentTab={setCurrentTab}
         collapsed={isSidebarCollapsed}
         setCollapsed={setIsSidebarCollapsed}
+        onLogout={() => setToastMessage('Sessão encerrada com sucesso.')}
       />
 
       {/* Main Content Area */}
@@ -328,7 +329,9 @@ export default function App() {
 
           {currentTab === 'horas' && <HoursManagementView />}
 
-          {currentTab === 'trilhas' && <TrainingTracksView />}
+          {currentTab === 'trilhas' && (
+            <TrainingTracksView onSelectTrack={(msg) => setToastMessage(msg)} />
+          )}
 
           {currentTab === 'restrita' && <RestrictedAreaView />}
         </div>

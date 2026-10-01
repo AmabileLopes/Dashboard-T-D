@@ -15,6 +15,7 @@ interface SidebarProps {
   setCurrentTab: (tab: string) => void;
   collapsed: boolean;
   setCollapsed: (collapsed: boolean) => void;
+  onLogout?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -22,6 +23,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   setCurrentTab,
   collapsed,
   setCollapsed,
+  onLogout,
 }) => {
   const menuItems = [
     { id: 'treinamentos', label: 'Gestão de Treinamentos', icon: LayoutGrid },
@@ -104,7 +106,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 Olá, Amabile Ouriques
               </p>
               <button
-                onClick={() => alert('Sessão encerrada com sucesso.')}
+                onClick={() => onLogout ? onLogout() : undefined}
                 className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-rose-400 transition-colors mt-0.5"
               >
                 <LogOut size={12} />

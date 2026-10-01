@@ -1,7 +1,11 @@
 import React from 'react';
 import { Award, BookOpen, CheckCircle2, ChevronRight, ShieldCheck } from 'lucide-react';
 
-export const TrainingTracksView: React.FC = () => {
+interface TrainingTracksViewProps {
+  onSelectTrack?: (msg: string) => void;
+}
+
+export const TrainingTracksView: React.FC<TrainingTracksViewProps> = ({ onSelectTrack }) => {
   const levels = [
     {
       level: 1,
@@ -92,7 +96,7 @@ export const TrainingTracksView: React.FC = () => {
 
             <div className="mt-6 pt-4 border-t border-slate-100">
               <button
-                onClick={() => alert(`Acessando trilhas do nível ${lvl.badge}...`)}
+                onClick={() => onSelectTrack ? onSelectTrack(`Acessando trilhas do nível ${lvl.badge}...`) : undefined}
                 className="w-full py-2.5 px-4 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-xl flex items-center justify-center gap-2 transition cursor-pointer"
               >
                 <span>Explorar Conteúdos</span>
