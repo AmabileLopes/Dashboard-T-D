@@ -411,71 +411,6 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
 
         {/* Modal Body - Scrollable */}
         <div className="p-6 overflow-y-auto space-y-6 flex-1 bg-[#fcfdfd]">
-          {/* Top KPI Cards (Screenshot 2: Atendidas, Gaps, Total) */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {/* Card 1: Atendidas */}
-            <div
-              onClick={() => setActiveTab('atendidas')}
-              className={`bg-[#ecfdf5] border rounded-2xl p-5 flex items-center justify-between shadow-2xs cursor-pointer transition-all hover:scale-[1.01] ${
-                activeTab === 'atendidas' ? 'ring-2 ring-emerald-500 border-emerald-400' : 'border-[#a7f3d0]'
-              }`}
-            >
-              <div>
-                <span className="text-[11px] font-bold text-[#047857] uppercase tracking-wider block">
-                  Atendidas
-                </span>
-                <span className="text-3xl font-black text-[#065f46] tracking-tight mt-1 block">
-                  {stats.atendidasDisplay.toLocaleString('pt-BR')}
-                </span>
-              </div>
-              <div className="w-10 h-10 rounded-full flex items-center justify-center text-[#10b981]">
-                <CheckCircle2 size={36} className="stroke-[2.2]" />
-              </div>
-            </div>
-
-            {/* Card 2: Gaps */}
-            <div
-              onClick={() => setActiveTab('gaps')}
-              className={`bg-[#fff1f2] border rounded-2xl p-5 flex items-center justify-between shadow-2xs cursor-pointer transition-all hover:scale-[1.01] ${
-                activeTab === 'gaps' ? 'ring-2 ring-rose-500 border-rose-400' : 'border-[#fecdd3]'
-              }`}
-            >
-              <div>
-                <span className="text-[11px] font-bold text-[#be123c] uppercase tracking-wider block">
-                  Gaps
-                </span>
-                <span className="text-3xl font-black text-[#e11d48] tracking-tight mt-1 block">
-                  {stats.gapsDisplay.toLocaleString('pt-BR')}
-                </span>
-              </div>
-              <div className="w-10 h-10 rounded-full flex items-center justify-center text-[#f43f5e]">
-                <AlertCircle size={36} className="stroke-[2.2]" />
-              </div>
-            </div>
-
-            {/* Card 3: Total */}
-            <div
-              onClick={() => setActiveTab('todas')}
-              className={`bg-slate-50 border rounded-2xl p-5 flex items-center justify-between shadow-2xs cursor-pointer transition-all hover:scale-[1.01] ${
-                activeTab === 'todas' ? 'ring-2 ring-slate-700 border-slate-400' : 'border-slate-200'
-              }`}
-            >
-              <div>
-                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
-                  Total
-                </span>
-                <span className="text-3xl font-black text-slate-800 tracking-tight mt-1 block">
-                  {stats.totalDisplay.toLocaleString('pt-BR')}
-                </span>
-              </div>
-              <div>
-                <span className="px-3 py-1 bg-white border border-slate-300 text-slate-700 text-xs font-bold rounded-lg shadow-2xs">
-                  {stats.rateDisplay}%
-                </span>
-              </div>
-            </div>
-          </div>
-
           {/* Filter Tabs & Quick Search */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-1">
             <div className="flex flex-wrap items-center gap-2">
@@ -541,23 +476,6 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full pl-9 pr-3 py-1.5 bg-white border border-slate-200 text-slate-800 text-xs rounded-xl focus:outline-none focus:border-blue-500 shadow-2xs"
                 />
-              </div>
-
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => handleExpandAll(true)}
-                  className="px-2.5 py-1.5 bg-white border border-slate-200 text-slate-600 hover:text-slate-900 text-[11px] font-semibold rounded-lg shadow-2xs cursor-pointer"
-                  title="Expandir todos"
-                >
-                  Expandir
-                </button>
-                <button
-                  onClick={() => handleExpandAll(false)}
-                  className="px-2.5 py-1.5 bg-white border border-slate-200 text-slate-600 hover:text-slate-900 text-[11px] font-semibold rounded-lg shadow-2xs cursor-pointer"
-                  title="Recolher todos"
-                >
-                  Recolher
-                </button>
               </div>
             </div>
           </div>
@@ -774,67 +692,30 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
 
                                             return sortedComps.map((comp) => {
                                               const isAtendida = comp.currentLevel >= comp.desiredLevel;
-                                              const gapCount = comp.currentLevel - comp.desiredLevel;
+                                              const gapCount = Math.max(0, comp.desiredLevel - comp.currentLevel);
                                               const isPrioritized = Boolean(
-                                                !isAtendida && comp.gapPriority && comp.gapPriority !== 'Item não priorizado'
+                                                comp.gapPriority && comp.gapPriority !== 'Item não priorizado'
                                               );
 
-                                              if (isAtendida) {
-                                                // Competência Atendida Row
-                                                return (
-                                                  <div
-                                                    key={comp.id}
-                                                    className="p-3 bg-[#f0fdf4]/50 hover:bg-[#ecfdf5]/75 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-l-4 border-l-[#10b981]"
-                                                  >
-                                                    <div>
-                                                      <h4 className="text-xs sm:text-sm font-bold text-slate-800">
-                                                        {comp.name}
-                                                      </h4>
-                                                      <span className="text-[11px] text-slate-500 font-normal">
-                                                        Nível desejado: {comp.desiredLevel}
-                                                      </span>
-                                                    </div>
-
-                                                    <div className="flex items-center gap-2 shrink-0">
-                                                      <span className="text-xs text-slate-500 font-medium">
-                                                        Atual:
-                                                      </span>
-                                                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-[#059669] text-white text-xs font-bold shadow-2xs">
-                                                        <Check size={13} className="stroke-[3]" />
-                                                        <span>Nível {comp.currentLevel}</span>
-                                                      </span>
-
-                                                      <button
-                                                        onClick={(e) => {
-                                                          e.stopPropagation();
-                                                          const nextLvl = ((comp.currentLevel % 3) + 1) as SkillLevel;
-                                                          onUpdateCompetency(maker.id, comp.id, 'currentLevel', nextLvl);
-                                                        }}
-                                                        className="text-[10px] text-slate-400 hover:text-slate-600 underline ml-1 cursor-pointer"
-                                                        title="Clique para alternar nível de teste"
-                                                      >
-                                                        (alterar)
-                                                      </button>
-                                                    </div>
-                                                  </div>
-                                                );
-                                              }
-
-                                              // Competência com GAP Row
                                               const isDropdownOpen = openDropdownCompId === comp.id;
 
-                                              // Hierarquia visual estrita de priorização (Alta > Média > Baixa > Sem prioridade):
-                                              // - Alta: Maior peso visual com vermelho claro bem presente e evidente
-                                              // - Média: Peso intermediário com laranja equilibrado e mais suave que a Alta
-                                              // - Baixa: Menor peso visual com amarelo bem sutil, suave e discreto (não ofusca a Média)
-                                              // - Gap sem priorização: Fundo neutro branco puro
-                                              let rowBgClass = 'bg-white hover:bg-slate-50 border-l-red-500';
+                                              // Hierarquia visual de priorização e atendimento:
+                                              let rowBgClass = isAtendida
+                                                ? 'bg-[#f0fdf4]/60 hover:bg-[#ecfdf5] border-l-[#10b981]'
+                                                : 'bg-white hover:bg-slate-50 border-l-red-500';
+
                                               if (comp.gapPriority === 'Prioridade I - Alta') {
-                                                rowBgClass = 'bg-red-100/90 hover:bg-red-100 border-l-red-600';
+                                                rowBgClass = isAtendida
+                                                  ? 'bg-red-50/70 hover:bg-red-50 border-l-[#10b981]'
+                                                  : 'bg-red-100/90 hover:bg-red-100 border-l-red-600';
                                               } else if (comp.gapPriority === 'Prioridade II - Média') {
-                                                rowBgClass = 'bg-orange-100/75 hover:bg-orange-100 border-l-red-500';
+                                                rowBgClass = isAtendida
+                                                  ? 'bg-orange-50/70 hover:bg-orange-50 border-l-[#10b981]'
+                                                  : 'bg-orange-100/75 hover:bg-orange-100 border-l-red-500';
                                               } else if (comp.gapPriority === 'Prioridade III - Baixa') {
-                                                rowBgClass = 'bg-[#fefce8] hover:bg-yellow-100/50 border-l-red-500';
+                                                rowBgClass = isAtendida
+                                                  ? 'bg-yellow-50/70 hover:bg-yellow-50 border-l-[#10b981]'
+                                                  : 'bg-[#fefce8] hover:bg-yellow-100/50 border-l-red-500';
                                               }
 
                                               return (
@@ -851,12 +732,12 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
                                                     </span>
                                                   </div>
 
-                                                  {/* GAP Controls Area */}
+                                                  {/* Controls Area */}
                                                   <div
                                                     className="flex flex-wrap items-center gap-3 shrink-0"
                                                     onClick={(e) => e.stopPropagation()}
                                                   >
-                                                    {/* Prioridade do GAP Dropdown */}
+                                                    {/* Prioridade Dropdown */}
                                                     <div className="relative">
                                                       <button
                                                         type="button"
@@ -886,7 +767,7 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
                                                             <span className="w-2 h-2 rounded-full bg-yellow-500 shrink-0"></span>
                                                           )}
                                                           <span className="truncate">
-                                                            {comp.gapPriority || 'Prioridade do GAP'}
+                                                            {comp.gapPriority || 'Prioridade'}
                                                           </span>
                                                         </div>
                                                         <ChevronDown size={14} className="text-slate-400 shrink-0" />
@@ -896,7 +777,7 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
                                                       {isDropdownOpen && (
                                                         <div className="absolute right-0 top-9 w-52 bg-white rounded-lg shadow-xl border border-slate-200 z-50 overflow-hidden text-xs">
                                                           <div className="bg-[#52525b] text-white px-3 py-2 font-semibold text-[11px]">
-                                                            Prioridade do GAP
+                                                            Prioridade
                                                           </div>
                                                           <div className="py-1">
                                                             {(
@@ -940,7 +821,6 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
                                                                       priority
                                                                     );
 
-                                                                    // Se definir prioridade e não houver data, preenche obrigatoriamente uma data inicial sugerida (30 dias)
                                                                     if (isPriorityActive && !comp.targetDate) {
                                                                       const d = new Date();
                                                                       d.setDate(d.getDate() + 30);
@@ -979,7 +859,7 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
                                                       )}
                                                     </div>
 
-                                                    {/* Data Prevista Input (Obrigatória se priorizado) */}
+                                                    {/* Data Prevista Input */}
                                                     <div className="relative flex flex-col items-start gap-0.5">
                                                       <div
                                                         className={`flex items-center gap-1.5 h-8 px-2.5 rounded-lg border shadow-2xs transition-all ${
@@ -993,11 +873,7 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
                                                             ? 'border-yellow-300 bg-yellow-50/40 hover:border-yellow-400'
                                                             : 'border-slate-200 bg-white hover:border-slate-300'
                                                         }`}
-                                                        title={
-                                                          isPrioritized
-                                                            ? 'Data prevista de conclusão (obrigatória para gaps priorizados)'
-                                                            : 'Data prevista de conclusão'
-                                                        }
+                                                        title="Data prevista de conclusão"
                                                       >
                                                         <Calendar
                                                           size={13}
@@ -1013,16 +889,9 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
                                                         />
                                                         <input
                                                           type="date"
-                                                          required={isPrioritized}
                                                           value={comp.targetDate || ''}
                                                           onChange={(e) => {
                                                             const val = e.target.value;
-                                                            if (isPrioritized && !val) {
-                                                              onToast(
-                                                                'A data de conclusão é necessária para competências priorizadas.'
-                                                              );
-                                                              return;
-                                                            }
                                                             onUpdateCompetency(
                                                               maker.id,
                                                               comp.id,
@@ -1034,14 +903,9 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
                                                           className="bg-transparent text-xs text-slate-700 focus:outline-none cursor-pointer w-28"
                                                         />
                                                       </div>
-                                                      {isPrioritized && (
-                                                        <span className="text-[9px] text-slate-400 font-normal pl-0.5 tracking-normal">
-                                                          * Data obrigatória
-                                                        </span>
-                                                      )}
                                                     </div>
 
-                                                    {/* Atual: [Nível X] (Bronze outline badge) */}
+                                                    {/* Atual: [Nível X] badge */}
                                                     <div className="flex items-center gap-1.5">
                                                       <span className="text-xs text-slate-500 font-medium">
                                                         Atual:
@@ -1052,18 +916,29 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
                                                           const nextLvl = (((comp.currentLevel + 1) % 4) as SkillLevel);
                                                           onUpdateCompetency(maker.id, comp.id, 'currentLevel', nextLvl);
                                                         }}
-                                                        className="px-2.5 py-0.5 rounded-md border border-[#d97706] text-[#b45309] bg-[#fffbeb] text-xs font-bold shadow-2xs hover:bg-[#fef3c7] cursor-pointer transition-colors"
+                                                        className={`px-2.5 py-0.5 rounded-md text-xs font-bold shadow-2xs cursor-pointer transition-colors ${
+                                                          isAtendida
+                                                            ? 'bg-[#059669] hover:bg-[#047857] text-white flex items-center gap-1'
+                                                            : 'border border-[#d97706] text-[#b45309] bg-[#fffbeb] hover:bg-[#fef3c7]'
+                                                        }`}
                                                         title="Clique para alternar o nível atual do Maker"
                                                       >
-                                                        Nível {comp.currentLevel}
+                                                        {isAtendida && <Check size={12} className="stroke-[3]" />}
+                                                        <span>Nível {comp.currentLevel}</span>
                                                       </button>
                                                     </div>
 
-                                                    {/* Gap Counter */}
+                                                    {/* Gap Counter / Status */}
                                                     <div className="min-w-[50px] text-right">
-                                                      <span className="text-xs font-extrabold text-[#e11d48]">
-                                                        Gap: {gapCount}
-                                                      </span>
+                                                      {isAtendida ? (
+                                                        <span className="text-xs font-bold text-[#059669]">
+                                                          Atendida
+                                                        </span>
+                                                      ) : (
+                                                        <span className="text-xs font-extrabold text-[#e11d48]">
+                                                          Gap: {gapCount}
+                                                        </span>
+                                                      )}
                                                     </div>
                                                   </div>
                                                 </div>
