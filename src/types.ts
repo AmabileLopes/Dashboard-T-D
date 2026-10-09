@@ -2,6 +2,9 @@ export type SkillLevel = 0 | 1 | 2 | 3;
 
 export type GapPriority = 
   | ''
+  | 'Prioridade Alta'
+  | 'Prioridade Média'
+  | 'Prioridade Baixa'
   | 'Prioridade I - Alta'
   | 'Prioridade II - Média'
   | 'Prioridade III - Baixa'
@@ -14,6 +17,8 @@ export interface Competency {
   isMandatory: boolean;
   targetPeriod: string;
   desiredLevel: SkillLevel; // 1 (Bronze), 2 (Prata), 3 (Ouro)
+  cargoLevel?: SkillLevel;
+  targetDesiredLevel?: SkillLevel;
   currentLevel: SkillLevel; // 0, 1 (Bronze), 2 (Prata), 3 (Ouro)
   gapPriority?: GapPriority;
   targetDate?: string; // YYYY-MM-DD

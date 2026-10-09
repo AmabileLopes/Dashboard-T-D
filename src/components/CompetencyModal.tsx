@@ -27,7 +27,7 @@ interface CompetencyModalProps {
   onUpdateCompetency: (
     makerId: string,
     compId: string,
-    field: 'gapPriority' | 'targetDate' | 'currentLevel',
+    field: 'gapPriority' | 'targetDate' | 'currentLevel' | 'targetDesiredLevel' | 'desiredLevel',
     value: string | SkillLevel | GapPriority
   ) => void;
   onSimulatePriorities?: (rules: { level1: GapPriority; level2: GapPriority; level3: GapPriority }) => void;
@@ -50,9 +50,9 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
   const [showSimulator, setShowSimulator] = useState(false);
 
   // Simulation custom options
-  const [simLevel1, setSimLevel1] = useState<GapPriority>('Prioridade I - Alta');
-  const [simLevel2, setSimLevel2] = useState<GapPriority>('Prioridade II - Média');
-  const [simLevel3, setSimLevel3] = useState<GapPriority>('Prioridade III - Baixa');
+  const [simLevel1, setSimLevel1] = useState<GapPriority>('Prioridade Alta');
+  const [simLevel2, setSimLevel2] = useState<GapPriority>('Prioridade Média');
+  const [simLevel3, setSimLevel3] = useState<GapPriority>('Prioridade Baixa');
   
   // Track expanded state of Gerentes, Times, and Makers
   const [expandedManagers, setExpandedManagers] = useState<Record<string, boolean>>({
@@ -65,12 +65,25 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
     'mkr-glauco': true,
   });
 
-  // Track active open priority dropdown
+  // Track active open priority and desired level dropdowns
   const [openDropdownCompId, setOpenDropdownCompId] = useState<string | null>(null);
+  const [openDesiredDropdownCompId, setOpenDesiredDropdownCompId] = useState<string | null>(null);
+
+  // Close dropdowns on outside click
+  React.useEffect(() => {
+    const handleClickOutside = () => {
+      setOpenDropdownCompId(null);
+      setOpenDesiredDropdownCompId(null);
+    };
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, []);
 
   // Synchronize initialTab if changed
   React.useEffect(() => {
     setActiveTab(initialTab);
+    setOpenDropdownCompId(null);
+    setOpenDesiredDropdownCompId(null);
   }, [initialTab]);
 
   const toggleManager = (id: string) => {
@@ -170,13 +183,13 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
     }
   };
 
-  // Helper to determine sorting order: Prioridade I - Alta (1), Média (2), Baixa (3), outros gaps (4), atendidas (5)
+  // Helper to determine sorting order: Prioridade Alta (1), Média (2), Baixa (3), outros gaps (4), atendidas (5)
   const getPriorityWeight = (comp: { currentLevel: number; desiredLevel: number; gapPriority?: string }) => {
     const isAtend = comp.currentLevel >= comp.desiredLevel;
     if (!isAtend) {
-      if (comp.gapPriority === 'Prioridade I - Alta') return 1;
-      if (comp.gapPriority === 'Prioridade II - Média') return 2;
-      if (comp.gapPriority === 'Prioridade III - Baixa') return 3;
+      if (comp.gapPriority === 'Prioridade Alta' || comp.gapPriority === 'Prioridade I - Alta') return 1;
+      if (comp.gapPriority === 'Prioridade Média' || comp.gapPriority === 'Prioridade II - Média') return 2;
+      if (comp.gapPriority === 'Prioridade Baixa' || comp.gapPriority === 'Prioridade III - Baixa') return 3;
       if (comp.gapPriority === 'Item não priorizado') return 4;
       return 5; // Gap sem prioridade selecionada
     }
@@ -225,6 +238,7 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
         'Maker (Colaborador)',
         'Competência',
         'Categoria',
+        'Nível do Cargo',
         'Nível Desejado',
         'Nível Atual',
         'Status',
@@ -242,8 +256,10 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
           const sortedMakerComps = [...mk.competencies].sort(compareCompetencies);
 
           sortedMakerComps.forEach((c) => {
-            const isAtendida = c.currentLevel >= c.desiredLevel;
-            const gapVal = isAtendida ? '0' : `${c.currentLevel - c.desiredLevel}`;
+            const cargoLevel = c.cargoLevel ?? c.desiredLevel;
+            const targetDesired = c.targetDesiredLevel ?? c.desiredLevel;
+            const isAtendida = c.currentLevel >= targetDesired;
+            const gapVal = isAtendida ? '0' : `${c.currentLevel - targetDesired}`;
             const isPrioritized = !isAtendida && c.gapPriority && c.gapPriority !== 'Item não priorizado';
             rows.push([
               m.name,
@@ -251,7 +267,8 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
               mk.name,
               c.name,
               c.category,
-              `Nível ${c.desiredLevel}`,
+              `Nível ${cargoLevel}`,
+              `Nível ${targetDesired}`,
               `Nível ${c.currentLevel}`,
               isAtendida ? 'Atendida' : 'GAP',
               gapVal,
@@ -285,7 +302,10 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
       <div
         className="bg-white w-full max-w-6xl max-h-[94vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-slate-100"
-        onClick={() => setOpenDropdownCompId(null)}
+        onClick={() => {
+          setOpenDropdownCompId(null);
+          setOpenDesiredDropdownCompId(null);
+        }}
       >
         {/* Modal Header */}
         <div className="px-6 py-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-4 bg-white shrink-0">
@@ -353,9 +373,9 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
                     onChange={(e) => setSimLevel1(e.target.value as GapPriority)}
                     className="bg-transparent font-medium text-slate-700 focus:outline-none cursor-pointer"
                   >
-                    <option value="Prioridade I - Alta">Alta (I)</option>
-                    <option value="Prioridade II - Média">Média (II)</option>
-                    <option value="Prioridade III - Baixa">Baixa (III)</option>
+                    <option value="Prioridade Alta">Alta</option>
+                    <option value="Prioridade Média">Média</option>
+                    <option value="Prioridade Baixa">Baixa</option>
                     <option value="Item não priorizado">Não Priorizado</option>
                   </select>
                 </div>
@@ -368,9 +388,9 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
                     onChange={(e) => setSimLevel2(e.target.value as GapPriority)}
                     className="bg-transparent font-medium text-slate-700 focus:outline-none cursor-pointer"
                   >
-                    <option value="Prioridade I - Alta">Alta (I)</option>
-                    <option value="Prioridade II - Média">Média (II)</option>
-                    <option value="Prioridade III - Baixa">Baixa (III)</option>
+                    <option value="Prioridade Alta">Alta</option>
+                    <option value="Prioridade Média">Média</option>
+                    <option value="Prioridade Baixa">Baixa</option>
                     <option value="Item não priorizado">Não Priorizado</option>
                   </select>
                 </div>
@@ -383,9 +403,9 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
                     onChange={(e) => setSimLevel3(e.target.value as GapPriority)}
                     className="bg-transparent font-medium text-slate-700 focus:outline-none cursor-pointer"
                   >
-                    <option value="Prioridade I - Alta">Alta (I)</option>
-                    <option value="Prioridade II - Média">Média (II)</option>
-                    <option value="Prioridade III - Baixa">Baixa (III)</option>
+                    <option value="Prioridade Alta">Alta</option>
+                    <option value="Prioridade Média">Média</option>
+                    <option value="Prioridade Baixa">Baixa</option>
                     <option value="Item não priorizado">Não Priorizado</option>
                   </select>
                 </div>
@@ -447,22 +467,6 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
               >
                 <AlertCircle size={14} />
                 <span>Gaps ({stats.gapsDisplay.toLocaleString('pt-BR')})</span>
-              </button>
-
-              {/* Filtragem discreta de Gaps Priorizados */}
-              <button
-                onClick={() => setActiveTab('priorizados')}
-                className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer ${
-                  activeTab === 'priorizados'
-                    ? 'bg-amber-500 text-white shadow-xs'
-                    : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
-                }`}
-              >
-                <Star
-                  size={13}
-                  className={activeTab === 'priorizados' ? 'fill-white text-white' : 'fill-amber-400 text-amber-500'}
-                />
-                <span>Gaps Priorizados</span>
               </button>
             </div>
 
@@ -691,28 +695,43 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
                                             }
 
                                             return sortedComps.map((comp) => {
-                                              const isAtendida = comp.currentLevel >= comp.desiredLevel;
-                                              const gapCount = Math.max(0, comp.desiredLevel - comp.currentLevel);
+                                              const cargoLevel = comp.cargoLevel ?? comp.desiredLevel;
+                                              const targetDesired = comp.targetDesiredLevel ?? comp.desiredLevel;
+                                              const isAtendida = comp.currentLevel >= targetDesired;
+                                              const gapCount = Math.max(0, targetDesired - comp.currentLevel);
                                               const isPrioritized = Boolean(
                                                 comp.gapPriority && comp.gapPriority !== 'Item não priorizado'
                                               );
 
                                               const isDropdownOpen = openDropdownCompId === comp.id;
+                                              const isDesiredDropdownOpen = openDesiredDropdownCompId === comp.id;
+
+                                              const isAlta = comp.gapPriority === 'Prioridade Alta' || comp.gapPriority === 'Prioridade I - Alta';
+                                              const isMedia = comp.gapPriority === 'Prioridade Média' || comp.gapPriority === 'Prioridade II - Média';
+                                              const isBaixa = comp.gapPriority === 'Prioridade Baixa' || comp.gapPriority === 'Prioridade III - Baixa';
+
+                                              const displayPriority = isAlta
+                                                ? 'Prioridade Alta'
+                                                : isMedia
+                                                ? 'Prioridade Média'
+                                                : isBaixa
+                                                ? 'Prioridade Baixa'
+                                                : comp.gapPriority;
 
                                               // Hierarquia visual de priorização e atendimento:
                                               let rowBgClass = isAtendida
                                                 ? 'bg-[#f0fdf4]/60 hover:bg-[#ecfdf5] border-l-[#10b981]'
                                                 : 'bg-white hover:bg-slate-50 border-l-red-500';
 
-                                              if (comp.gapPriority === 'Prioridade I - Alta') {
+                                              if (isAlta) {
                                                 rowBgClass = isAtendida
                                                   ? 'bg-red-50/70 hover:bg-red-50 border-l-[#10b981]'
                                                   : 'bg-red-100/90 hover:bg-red-100 border-l-red-600';
-                                              } else if (comp.gapPriority === 'Prioridade II - Média') {
+                                              } else if (isMedia) {
                                                 rowBgClass = isAtendida
                                                   ? 'bg-orange-50/70 hover:bg-orange-50 border-l-[#10b981]'
                                                   : 'bg-orange-100/75 hover:bg-orange-100 border-l-red-500';
-                                              } else if (comp.gapPriority === 'Prioridade III - Baixa') {
+                                              } else if (isBaixa) {
                                                 rowBgClass = isAtendida
                                                   ? 'bg-yellow-50/70 hover:bg-yellow-50 border-l-[#10b981]'
                                                   : 'bg-[#fefce8] hover:bg-yellow-100/50 border-l-red-500';
@@ -728,7 +747,7 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
                                                       {comp.name}
                                                     </h4>
                                                     <span className="text-[11px] text-slate-500 font-normal">
-                                                      Nível desejado: {comp.desiredLevel}
+                                                      Nível do Cargo: {cargoLevel}
                                                     </span>
                                                   </div>
 
@@ -737,73 +756,141 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
                                                     className="flex flex-wrap items-center gap-3 shrink-0"
                                                     onClick={(e) => e.stopPropagation()}
                                                   >
+                                                    {/* Nível Desejado Dropdown */}
+                                                    <div className="relative">
+                                                      <button
+                                                        type="button"
+                                                        title="Nível Desejado"
+                                                        onClick={() => {
+                                                          setOpenDropdownCompId(null);
+                                                          setOpenDesiredDropdownCompId(
+                                                            isDesiredDropdownOpen ? null : comp.id
+                                                          );
+                                                        }}
+                                                        className="h-8 px-2.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-1.5 shadow-2xs cursor-pointer transition-colors"
+                                                      >
+                                                        <div className="flex items-center gap-1.5">
+                                                          <span className="whitespace-nowrap">
+                                                            {comp.targetDesiredLevel
+                                                              ? `Nível Desejado: ${comp.targetDesiredLevel}`
+                                                              : comp.desiredLevel
+                                                              ? `Nível Desejado: ${comp.desiredLevel}`
+                                                              : 'Nível Desejado'}
+                                                          </span>
+                                                        </div>
+                                                        <ChevronDown size={13} className="text-slate-400 shrink-0 ml-0.5" />
+                                                      </button>
+
+                                                      {/* Dropdown Options */}
+                                                      {isDesiredDropdownOpen && (
+                                                        <div className="absolute left-0 top-9 w-36 bg-white rounded-lg shadow-xl border border-slate-200 z-50 overflow-hidden text-xs">
+                                                          <div className="bg-[#52525b] text-white px-3 py-2 font-semibold text-[11px]">
+                                                            Nível Desejado
+                                                          </div>
+                                                          <div className="py-1">
+                                                            {([1, 2, 3] as SkillLevel[]).map((level) => {
+                                                              const isSelected = targetDesired === level;
+                                                              return (
+                                                                <button
+                                                                  key={level}
+                                                                  type="button"
+                                                                  onClick={() => {
+                                                                    onUpdateCompetency(
+                                                                      maker.id,
+                                                                      comp.id,
+                                                                      'targetDesiredLevel',
+                                                                      level
+                                                                    );
+                                                                    onToast(`Nível Desejado definido para ${level}`);
+                                                                    setOpenDesiredDropdownCompId(null);
+                                                                  }}
+                                                                  className={`w-full text-left px-3 py-2 text-slate-700 hover:bg-slate-100 transition-colors flex items-center justify-between cursor-pointer ${
+                                                                    isSelected ? 'bg-slate-100 font-bold text-slate-900' : ''
+                                                                  }`}
+                                                                >
+                                                                  <span>{level}</span>
+                                                                  {isSelected && (
+                                                                    <Check size={13} className="text-slate-700" />
+                                                                  )}
+                                                                </button>
+                                                              );
+                                                            })}
+                                                          </div>
+                                                        </div>
+                                                      )}
+                                                    </div>
+
                                                     {/* Prioridade Dropdown */}
                                                     <div className="relative">
                                                       <button
                                                         type="button"
-                                                        onClick={() =>
-                                                          setOpenDropdownCompId(isDropdownOpen ? null : comp.id)
-                                                        }
-                                                        className={`h-8 px-3 rounded-lg border text-xs font-semibold flex items-center justify-between gap-2 shadow-2xs min-w-[155px] cursor-pointer transition-colors ${
-                                                          comp.gapPriority === 'Prioridade I - Alta'
+                                                        onClick={() => {
+                                                          setOpenDesiredDropdownCompId(null);
+                                                          setOpenDropdownCompId(isDropdownOpen ? null : comp.id);
+                                                        }}
+                                                        className={`h-8 px-2.5 rounded-lg border text-xs font-semibold flex items-center gap-1.5 shadow-2xs cursor-pointer transition-colors ${
+                                                          isAlta
                                                             ? 'bg-red-50/80 border-red-300 text-red-900 hover:bg-red-100'
-                                                            : comp.gapPriority === 'Prioridade II - Média'
+                                                            : isMedia
                                                             ? 'bg-orange-50/80 border-orange-300 text-orange-900 hover:bg-orange-100'
-                                                            : comp.gapPriority === 'Prioridade III - Baixa'
+                                                            : isBaixa
                                                             ? 'bg-yellow-50/80 border-yellow-300 text-yellow-900 hover:bg-yellow-100'
                                                             : comp.gapPriority === 'Item não priorizado'
                                                             ? 'bg-slate-50 border-slate-300 text-slate-600 hover:bg-slate-100'
                                                             : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
                                                         }`}
                                                       >
-                                                        <div className="flex items-center gap-1.5 truncate">
-                                                          {comp.gapPriority === 'Prioridade I - Alta' && (
+                                                        <div className="flex items-center gap-1.5">
+                                                          {isAlta && (
                                                             <span className="w-2 h-2 rounded-full bg-red-600 shrink-0"></span>
                                                           )}
-                                                          {comp.gapPriority === 'Prioridade II - Média' && (
+                                                          {isMedia && (
                                                             <span className="w-2 h-2 rounded-full bg-orange-500 shrink-0"></span>
                                                           )}
-                                                          {comp.gapPriority === 'Prioridade III - Baixa' && (
+                                                          {isBaixa && (
                                                             <span className="w-2 h-2 rounded-full bg-yellow-500 shrink-0"></span>
                                                           )}
-                                                          <span className="truncate">
-                                                            {comp.gapPriority || 'Prioridade'}
+                                                          <span className="whitespace-nowrap">
+                                                            {displayPriority || 'Prioridade'}
                                                           </span>
                                                         </div>
-                                                        <ChevronDown size={14} className="text-slate-400 shrink-0" />
+                                                        <ChevronDown size={13} className="text-slate-400 shrink-0 ml-0.5" />
                                                       </button>
 
                                                       {/* Dropdown Options */}
                                                       {isDropdownOpen && (
-                                                        <div className="absolute right-0 top-9 w-52 bg-white rounded-lg shadow-xl border border-slate-200 z-50 overflow-hidden text-xs">
+                                                        <div className="absolute left-0 top-9 w-44 bg-white rounded-lg shadow-xl border border-slate-200 z-50 overflow-hidden text-xs">
                                                           <div className="bg-[#52525b] text-white px-3 py-2 font-semibold text-[11px]">
                                                             Prioridade
                                                           </div>
                                                           <div className="py-1">
                                                             {(
                                                               [
-                                                                'Prioridade I - Alta',
-                                                                'Prioridade II - Média',
-                                                                'Prioridade III - Baixa',
-                                                                'Item não priorizado',
+                                                                'Prioridade Alta',
+                                                                'Prioridade Média',
+                                                                'Prioridade Baixa',
                                                               ] as GapPriority[]
                                                             ).map((priority) => {
-                                                              const isSelected = comp.gapPriority === priority;
+                                                              const isSelected =
+                                                                  comp.gapPriority === priority ||
+                                                                  (priority === 'Prioridade Alta' && isAlta) ||
+                                                                  (priority === 'Prioridade Média' && isMedia) ||
+                                                                  (priority === 'Prioridade Baixa' && isBaixa);
                                                               const dotColor =
-                                                                priority === 'Prioridade I - Alta'
+                                                                priority === 'Prioridade Alta'
                                                                   ? 'bg-red-600'
-                                                                  : priority === 'Prioridade II - Média'
+                                                                  : priority === 'Prioridade Média'
                                                                   ? 'bg-orange-500'
-                                                                  : priority === 'Prioridade III - Baixa'
+                                                                  : priority === 'Prioridade Baixa'
                                                                   ? 'bg-yellow-500'
                                                                   : 'bg-slate-400';
 
                                                               const activeBg =
-                                                                priority === 'Prioridade I - Alta'
+                                                                priority === 'Prioridade Alta'
                                                                   ? 'bg-red-50 text-red-900 font-bold'
-                                                                  : priority === 'Prioridade II - Média'
+                                                                  : priority === 'Prioridade Média'
                                                                   ? 'bg-orange-50 text-orange-900 font-bold'
-                                                                  : priority === 'Prioridade III - Baixa'
+                                                                  : priority === 'Prioridade Baixa'
                                                                   ? 'bg-yellow-50 text-yellow-900 font-bold'
                                                                   : 'bg-slate-100 text-slate-800 font-bold';
 
@@ -865,11 +952,11 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
                                                         className={`flex items-center gap-1.5 h-8 px-2.5 rounded-lg border shadow-2xs transition-all ${
                                                           isPrioritized && !comp.targetDate
                                                             ? 'border-rose-300 bg-rose-50/30'
-                                                            : comp.gapPriority === 'Prioridade I - Alta'
+                                                            : isAlta
                                                             ? 'border-red-300 bg-red-50/40 hover:border-red-400'
-                                                            : comp.gapPriority === 'Prioridade II - Média'
+                                                            : isMedia
                                                             ? 'border-orange-300 bg-orange-50/40 hover:border-orange-400'
-                                                            : comp.gapPriority === 'Prioridade III - Baixa'
+                                                            : isBaixa
                                                             ? 'border-yellow-300 bg-yellow-50/40 hover:border-yellow-400'
                                                             : 'border-slate-200 bg-white hover:border-slate-300'
                                                         }`}
@@ -878,11 +965,11 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
                                                         <Calendar
                                                           size={13}
                                                           className={
-                                                            comp.gapPriority === 'Prioridade I - Alta'
+                                                            isAlta
                                                               ? 'text-red-600'
-                                                              : comp.gapPriority === 'Prioridade II - Média'
+                                                              : isMedia
                                                               ? 'text-orange-600'
-                                                              : comp.gapPriority === 'Prioridade III - Baixa'
+                                                              : isBaixa
                                                               ? 'text-yellow-600'
                                                               : 'text-slate-400'
                                                           }
@@ -964,24 +1051,10 @@ export const CompetencyModal: React.FC<CompetencyModalProps> = ({
         </div>
 
         {/* Modal Footer */}
-        <div className="px-6 py-3 border-t border-slate-100 bg-slate-50/80 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500 shrink-0">
-          <div className="flex flex-wrap items-center gap-4">
-            <span className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#10b981] inline-block"></span>
-              Atendida (Nível Atual &ge; Nível Desejado)
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block"></span>
-              Gap Priorizado (Com prioridade e plano de ação)
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#f43f5e] inline-block"></span>
-              Gap Não Priorizado
-            </span>
-          </div>
+        <div className="px-6 py-3 border-t border-slate-100 bg-slate-50/80 flex items-center justify-end gap-3 text-xs text-slate-500 shrink-0">
           <button
             onClick={onClose}
-            className="px-4 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold rounded-lg transition-colors cursor-pointer"
+            className="px-5 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold rounded-lg transition-colors cursor-pointer"
           >
             Concluir
           </button>

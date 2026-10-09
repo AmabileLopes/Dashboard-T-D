@@ -198,7 +198,7 @@ export default function App() {
   const handleUpdateCompetency = (
     makerId: string,
     compId: string,
-    field: 'gapPriority' | 'targetDate' | 'currentLevel',
+    field: 'gapPriority' | 'targetDate' | 'currentLevel' | 'targetDesiredLevel' | 'desiredLevel',
     value: string | SkillLevel | GapPriority
   ) => {
     setManagers((prev) =>
@@ -212,9 +212,12 @@ export default function App() {
               ...mk,
               competencies: mk.competencies.map((comp) => {
                 if (comp.id !== compId) return comp;
+                const cargoLevel = comp.cargoLevel ?? comp.desiredLevel;
                 return {
                   ...comp,
+                  cargoLevel,
                   [field]: value,
+                  ...(field === 'targetDesiredLevel' ? { desiredLevel: value as SkillLevel } : {}),
                 };
               }),
             };

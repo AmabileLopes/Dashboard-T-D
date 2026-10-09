@@ -39,7 +39,7 @@ export const RestrictedAreaView: React.FC = () => {
               <span className="font-bold text-slate-900">Nível 3 (Ouro) em &ge; 4 competências</span>
             </div>
             <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl">
-              <span className="font-semibold text-slate-700">Prazo Padrão para Resolução de Gap Prioridade I</span>
+              <span className="font-semibold text-slate-700">Prazo Padrão para Resolução de Gap de Prioridade Alta</span>
               <span className="font-bold text-slate-900">60 dias</span>
             </div>
           </div>
